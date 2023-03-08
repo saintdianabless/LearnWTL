@@ -4,37 +4,66 @@
 #include "framework.h"
 #include "WTLTutorial.h"
 
-class MainWindow {
+template<typename Derived>
+class BaseWindow {
 public:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-        MainWindow* self = nullptr;
         if (uMsg == WM_CREATE) {
+            BaseWindow* self = nullptr;
             auto cs = reinterpret_cast<CREATESTRUCT*>(lParam);
-            self = reinterpret_cast<MainWindow*>(cs->lpCreateParams);
+            self = reinterpret_cast<BaseWindow*>(cs->lpCreateParams);
             SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)self);
             self->_hwnd = hwnd;
             return 0;
         }
-        
-        self = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-        if (self) {
-            return self->HandleMessage(uMsg, wParam, lParam);
+
+        Derived* derived = reinterpret_cast<Derived*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+        if (derived) {
+            return derived->HandleMessage(uMsg, wParam, lParam);
         }
         return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
 
-private:
+    BOOL Create(PCWSTR lpWindowName, DWORD dwStyle, DWORD dwExStyle = 0,
+        int x = CW_USEDEFAULT, int y = CW_USEDEFAULT, int nWidth = CW_USEDEFAULT, int nHeight = CW_USEDEFAULT,
+        HWND hWndParent = 0, HMENU hMenu = 0
+    ){
+        Derived* underlying = static_cast<Derived*>(this);
+
+        WNDCLASS wc = { 0 };
+        wc.lpfnWndProc = BaseWindow<Derived>::WindowProc;
+        wc.hInstance = GetModuleHandle(NULL);
+        wc.lpszClassName = underlying->ClassName();
+        RegisterClass(&wc);
+
+        _hwnd = CreateWindowEx(
+            dwExStyle, underlying->ClassName(), lpWindowName, dwStyle, x, y,
+            nWidth, nHeight, hWndParent, hMenu, GetModuleHandle(NULL), this
+        );
+
+        return (_hwnd ? TRUE : FALSE);
+    }
+
+    HWND Window() const {
+        return _hwnd;
+    }
+protected:
+    HWND _hwnd;
+};
+
+class MainWindow: public BaseWindow<MainWindow> {
+public:
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
         switch (uMsg)
         {
         case WM_SIZE:
         {
-            OnSize(_hwnd, lParam);
+            OnSize(lParam);
             return 0;
         }
         case WM_PAINT:
         {
-            OnPaint(_hwnd);
+            OnPaint();
             return 0;
         }
         case WM_CLOSE:
@@ -51,7 +80,11 @@ private:
         return DefWindowProc(_hwnd, uMsg, wParam, lParam);
     }
 
-    void OnSize(HWND hwnd, LPARAM lParam) {
+    const wchar_t* ClassName() const {
+        return _className;
+    }
+private:
+    void OnSize(LPARAM lParam) {
         ++this->_nResize;
         wchar_t buf[1024];
         int width = LOWORD(lParam);
@@ -60,9 +93,9 @@ private:
         OutputDebugString(buf);
     }
 
-    void OnPaint(HWND hwnd) {
+    void OnPaint() {
         PAINTSTRUCT ps;
-        auto hdc = BeginPaint(hwnd, &ps);  // 获取要更新绘制区域的信息
+        auto hdc = BeginPaint(_hwnd, &ps);  // 获取要更新绘制区域的信息
         auto rc = ps.rcPaint;
         wchar_t buf[1024];
         swprintf_s(buf, 1024,
@@ -72,10 +105,11 @@ private:
         // ALL PAINTING STUFF
         FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 
-        EndPaint(hwnd, &ps);  // 清空Update Region, 不再发WM_PAINT消息
+        EndPaint(_hwnd, &ps);  // 清空Update Region, 不再发WM_PAINT消息
     }
+
     int _nResize;
-    HWND _hwnd;
+    const wchar_t* const _className = L"Sample Window Class";
 };
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -83,30 +117,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
-    MainWindow mw{};
+    MainWindow *mw = new MainWindow();
 
-    const wchar_t CLASS_NAME[] = L"Sample Window Class";
-    WNDCLASS wc{};
-    wc.lpfnWndProc = &mw.WindowProc;
-    wc.hInstance = hInstance;
-    wc.lpszClassName = CLASS_NAME;
-    RegisterClass(&wc);
-
-    auto hwnd = CreateWindowExW(
-        0,
-        CLASS_NAME,
-        L"Window编程",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-        NULL,  // owner
-        NULL,
-        hInstance,
-        &mw);
-    
-    if (hwnd == NULL) {
+    if (!mw->Create(L"Window编程", WS_OVERLAPPEDWINDOW)) {
         return 0;
     }
-    ShowWindow(hwnd, nCmdShow);
+    ShowWindow(mw->Window(), nCmdShow);
 
     MSG msg{};
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
