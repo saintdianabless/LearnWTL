@@ -4,11 +4,27 @@
 #include "framework.h"
 #include "WTLTutorial.h"
 
-void OnSize(HWND, LPARAM lParam) {
+struct State {
+    int _nResize;
+};
+
+void SetAppState(HWND hwnd, LPARAM lParam) {
+    auto cs = reinterpret_cast<CREATESTRUCT*>(lParam);
+    auto state = reinterpret_cast<State*>(cs->lpCreateParams);
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)state);
+}
+
+State* GetAppState(HWND hwnd) {
+    return reinterpret_cast<State*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+}
+
+void OnSize(HWND hwnd, LPARAM lParam) {
+    int& resize = GetAppState(hwnd)->_nResize;
+    ++resize;
     wchar_t buf[1024];
     int width = LOWORD(lParam);
     int height = HIWORD(lParam);
-    swprintf_s(buf, 1024, L"resize窗口: (%d, %d)\n", width, height);
+    swprintf_s(buf, 1024, L"第%d次resize窗口: (%d, %d)\n", resize, width, height);
     OutputDebugString(buf);
 }
 
@@ -30,6 +46,9 @@ void OnPaint(HWND hwnd) {
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg)
     {
+    case WM_CREATE:
+        SetAppState(hwnd, lParam);
+        return 0;
     case WM_SIZE:
     {
         OnSize(hwnd, lParam);
@@ -59,6 +78,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
+    auto state = new State();  // 状态
+    state->_nResize = 0;
+
     const wchar_t CLASS_NAME[] = L"Sample Window Class";
     WNDCLASS wc{};
     wc.lpfnWndProc = WindowProc;
@@ -75,7 +97,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         NULL,  // owner
         NULL,
         hInstance,
-        NULL);
+        state);
     
     if (hwnd == NULL) {
         return 0;
