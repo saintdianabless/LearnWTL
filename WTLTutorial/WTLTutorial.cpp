@@ -12,6 +12,20 @@ void OnSize(HWND, LPARAM lParam) {
     OutputDebugString(buf);
 }
 
+void OnPaint(HWND hwnd) {
+    PAINTSTRUCT ps;
+    auto hdc = BeginPaint(hwnd, &ps);  // 获取要更新绘制区域的信息
+    auto rc = ps.rcPaint;
+    wchar_t buf[1024];
+    swprintf_s(buf, 1024, 
+        L"绘制区域: (%d, %d, %d, %d)\n", rc.left, rc.top, rc.right, rc.bottom);
+    OutputDebugString(buf);
+
+    // ALL PAINTING STUFF
+    FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+    EndPaint(hwnd, &ps);  // 清空Update Region, 不再发WM_PAINT消息
+}
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg)
@@ -23,15 +37,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     }
     case WM_PAINT:
     {
-        PAINTSTRUCT ps;
-        auto hdc = BeginPaint(hwnd, &ps);
-
-        // ALL PAINTING STUFF
-        FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-
-        EndPaint(hwnd, &ps);
+        OnPaint(hwnd);
         return 0;
     }
+    case WM_CLOSE:
+        if (MessageBox(hwnd, L"确认退出?", L"Windows程序", MB_OKCANCEL) == IDOK) {
+            DestroyWindow(hwnd);
+        }
+        return 0;  // 忽略该消息
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
