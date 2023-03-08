@@ -4,10 +4,23 @@
 #include "framework.h"
 #include "WTLTutorial.h"
 
+void OnSize(HWND, LPARAM lParam) {
+    wchar_t buf[1024];
+    int width = LOWORD(lParam);
+    int height = HIWORD(lParam);
+    swprintf_s(buf, 1024, L"resize´°¿Ú: (%d, %d)\n", width, height);
+    OutputDebugString(buf);
+}
+
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg)
     {
+    case WM_SIZE:
+    {
+        OnSize(hwnd, lParam);
+        return 0;
+    }
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
